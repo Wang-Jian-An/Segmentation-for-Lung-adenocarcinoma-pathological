@@ -5,6 +5,7 @@ import json
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from tqdm import tqdm
 
 from skimage.draw import polygon2mask
 
@@ -26,7 +27,7 @@ mask_json_path = [i for i in zipData.namelist() if ".json" in i]
 # Step3. 將檔案做配對
 images_path = sorted(images_path)
 mask_json_path = sorted(mask_json_path)
-output_mask_name = ["mask_" + one_image.split("/")[-1] for one_image in images_path]
+output_mask_name = ["mask_" + one_image.split("/")[-1].replace(".jpg", ".png") for one_image in images_path]
 
 
 if "Train_images" not in os.listdir(".//"):
@@ -34,20 +35,21 @@ if "Train_images" not in os.listdir(".//"):
 
 if "Train_Mask" not in os.listdir(".//"):
     os.mkdir("Train_Mask")
+
+one_image_path = images_path[0]
+one_json_path = mask_json_path[0]
+one_mask_output_name = output_mask_name[0]
 # Step4. 逐一輸入圖片與 .json
-for one_image_path, one_json_path, one_mask_output_name in zip(images_path, mask_json_path, output_mask_name):
+for one_image_path, one_json_path, one_mask_output_name in tqdm(zip(images_path, mask_json_path, output_mask_name), total = images_path.__len__()):
     # Step5. 分別讀入圖片（且要進行 Transpose）與 .json
     one_image = plt.imread(zipData.open(one_image_path)).transpose((1, 0, 2))
     one_json = json.load(zipData.open(one_json_path))
     
     # Step6. 從 .json 中挑選出各別的 mask 並合併後，得出該圖片完美的 mask
     all_mask = np.add.reduce([polygon2mask(image_shape = (one_image.shape[0], one_image.shape[1]), polygon = one_polygon["points"]) for one_polygon in one_json["shapes"]])
-    
+    all_mask = all_mask[:, :, np.newaxis]
+
     # Step7. 將圖片、Mask 輸出
     one_image = cv2.cvtColor(one_image, cv2.COLOR_RGB2BGR)
-    cv2.imwrite("Train_image/" + one_image_path.split("/")[-1], one_image)
+    cv2.imwrite("Train_images/" + one_image_path.split("/")[-1].replace(".jpg", ".png"), one_image)
     cv2.imwrite(f"Train_Mask/{one_mask_output_name}", all_mask)
-    break
-    
-
-

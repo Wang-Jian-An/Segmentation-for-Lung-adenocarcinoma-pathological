@@ -13,7 +13,7 @@ import torch.nn.functional as F
 from torchvision import transforms
 from torchvision.models.segmentation import fcn_resnet50
 from torch.utils.data import TensorDataset, DataLoader
-from sklearn.model_selection impo rt train_test_split
+from sklearn.model_selection import train_test_split
 
 
 """
@@ -29,7 +29,7 @@ from sklearn.model_selection impo rt train_test_split
 """
 
 # 大方向 1：配對地匯入原始圖片與Mask
-zipData = zipfile.ZipFile("SEG_Train_Mask_Images_Datasets.zip")
+zipData = zipfile.ZipFile("..//SEG_Train_Mask_Images_Datasets.zip")
 original_images = sorted([i for i in zipData.namelist() if ("mask" not in i) and (".jpg" in i)])
 mask_images = sorted([i for i in zipData.namelist() if ("mask" in i) and (".jpg" in i)])
 
@@ -85,16 +85,32 @@ epochs = 10
 model = segmentation_transfer_learning()
 loss_func = nn.BCELoss()
 optimizer = torch.optim.AdamW(model.parameters(), lr = 1e-4)
+scheduler = torch.optim.lr_scheduler(optimizer)
 train_loss_list, test_loss_list = list(), list()
+train_loss, vali_loss = 0.0, 0.0
 
-model.train()
-train_loss = 0.0
-for original_image, mask_image in train_dataloader:
-    optimizer.zero_grad()
-    yhat = model(original_image)
+for epoch in range(epochs):
+    train_loss, vali_loss = 0.0, 0.0
+    model.train()
+    for original_image, mask_image in train_dataloader:
+        optimizer.zero_grad()
+        yhat = model(original_image)
 
-    loss = loss_func(torch.flatten(yhat), torch.flatten(mask_image).float())
-    train_loss += loss.item()
-    loss.backward()
-    optimizer.step()
-    break
+        loss = loss_func(torch.flatten(yhat), torch.flatten(mask_image).float())
+        train_loss += loss.item()
+        loss.backward()
+        optimizer.step()
+        break
+    scheduler.step()
+
+    model.eval()
+    for original_image, mask_image in test_dataloader:
+        with torch.no_grad():
+            yhat = model(original_image)
+        loss = loss_func(torch.flatten(yhat), torch.flatten(mask_image).float())
+        vali_loss += loss.item()
+    train_loss_list.append(train_loss)
+    test_loss_list.append(vali_loss)
+
+    torch.save(model, "model//segmentation_fcn_resnet50.pth")
+
